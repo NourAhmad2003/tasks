@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User; // استدعاء موديل الـ User لاستخدامه في الـ Eloquent
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,70 +11,89 @@ use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    // عرض قائمة المستخدمين (ولو في مستخدم جاي للتعديل بيمرره معهم)
     public function index(): View
     {
-        $users = DB::table('users')->get();
+        // $users = DB::table('users')->get();
+        $users = User::all();
 
         return view('users', compact('users'));
     }
 
-    // إضافة مستخدم جديد (زي دالة create في التاسك)
+    // إضافة مستخدم جديد
     public function create(Request $request): RedirectResponse
-    {
-        $name = $_POST['name'];
-        $email = $_POST['email'];
-        // تشفير كلمة المرور لحماية الحسابات في قاعدة البيانات
-        $password = Hash::make($_POST['password']);
+{
+    // تعديل الشروط لتصبح اختيارية ومرنة، وحذف شرط الـ 6 خانات
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email', // أزلنا شرط الـ unique إذا كنتِ تريدين السماح بالتكرار مؤقتاً
+        'password' => 'required',     // أزلنا شرط الـ min:6
+    ]);
 
-        DB::table('users')->insert([
-            'name' => $name,
-            'email' => $email,
-            'password' => $password,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+    $user = new User();
+    $user->name = $request->input('name');
+    $user->email = $request->input('email');
+    $user->password = Hash::make($request->input('password'));
+    $user->save();
 
-        return redirect()->back();
-    }
+    return redirect()->back();
+}
 
     // جلب بيانات مستخدم معين للتعديل وعرضه مع القائمة
     public function edit($id): View
     {
-        $user = DB::table('users')->where('id', $id)->first();
-        $users = DB::table('users')->get();
+        // $user = DB::table('users')->where('id', $id)->first();
+        // $users = DB::table('users')->get();
+
+        // تحويل إلى Eloquent Model:
+        $user = User::findOrFail($id);
+        $users = User::all();
 
         return view('users', compact('user', 'users'));
     }
 
-    // تحديث بيانات المستخدم (زي دالة update في التاسك)
-    public function update(): RedirectResponse
+    // تحديث بيانات المستخدم
+    public function update(Request $request): RedirectResponse
     {
-        $id = $_POST['id'];
-        $name = $_POST['name'];
-        $email = $_POST['email'];
+        // $id = $_POST['id'];
+        $id = $request->input('id');
 
-        // تجهيز البيانات المراد تحديثها
-        $updateData = [
-            'name' => $name,
-            'email' => $email,
-            'updated_at' => now()
-        ];
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $id,
+        ]);
 
-        // لو المستخدم كتب كلمة مرور جديدة، بنحدثها
-        if (!empty($_POST['password'])) {
-            $updateData['password'] = Hash::make($_POST['password']);
+        // $name = $_POST['name'];
+        // $email = $_POST['email'];
+        // $updateData = [
+        //     'name' => $name,
+        //     'email' => $email,
+        //     'updated_at' => now()
+        // ];
+        // if (!empty($_POST['password'])) {
+        //     $updateData['password'] = Hash::make($_POST['password']);
+        // }
+        // DB::table('users')->where('id', '=', $id)->update($updateData);
+
+        // تحويل إلى Eloquent Model:
+        $user = User::findOrFail($id);
+        $user->name = $request->input('name');
+        $user->email = $request->input('email');
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->input('password'));
         }
-
-        DB::table('users')->where('id', '=', $id)->update($updateData);
+        $user->save();
 
         return redirect('users');
     }
 
-    // حذف مستخدم (زي دالة destroy في التاسك)
     public function destroy($id): RedirectResponse
     {
-        DB::table('users')->where('id', '=', $id)->delete();
+        // DB::table('users')->where('id', '=', $id)->delete();
+
+        // تحويل إلى Eloquent Model:
+        $user = User::findOrFail($id);
+        $user->delete();
 
         return redirect()->back();
     }
